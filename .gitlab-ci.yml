@@ -1,0 +1,76 @@
+variables:
+  EXE_RELEASE_FOLDER: 'YourApp\bin\Release'
+  MSI_RELEASE_FOLDER: 'Setup\bin\Release'
+  TEST_FOLDER: 'Tests\bin\Release'
+  DEPLOY_FOLDER: 'P:\Projects\YourApp\Builds'
+  NUGET_PATH: 'C:\NuGet\nuget.exe'
+  MSBUILD_PATH: 'C:\Program Files (x86)\MSBuild\14.0\Bin\msbuild.exe'
+  NUNIT_PATH: 'C:\Program Files (x86)\NUnit.org\nunit-console\nunit3-console.exe'
+  IMAGE_TAG: $CI_REGISTRY_USER/puzzlegame:$CI_COMMIT_REF_SLUG
+
+stages:
+  - source
+  - build
+  - lint
+  - test
+  - deploy
+
+install_job:
+  tags:
+    - build
+  stage: source
+  script:
+    - npm install -f
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+  only:
+    refs:
+      - merge_requests
+      - main
+    changes:
+      - package-lock.json
+
+build_job:
+  image: docker:19.03.13
+  stage: build
+  tags:
+    - build
+  script:
+    - docker system prune --volumes -f
+    - docker build -t getting-started .
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+    policy: pull
+
+eslint_job:
+  stage: lint
+  script:
+    - npm run lint:ci
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+    policy: pull
+
+deploy_job:
+  image: docker:19.03.13
+  tags:
+    - deploy
+  stage: deploy
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+  script:
+    - echo "This job deploys something from the $CI_COMMIT_BRANCH branch."
+    - docker push $IMAGE_TAG
+  only:
+    - main
